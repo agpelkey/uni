@@ -2,11 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"log"
-	"net/http"
-	"net/http/httptest"
-	"net/http/httputil"
 	"net/url"
 	"os/exec"
 	"strings"
