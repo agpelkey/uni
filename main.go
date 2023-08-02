@@ -35,7 +35,7 @@ func NewLoadBalancer(servers []*Backend) *LoadBalancer {
 }
 
 // Returns true when the backend is up (alive)
-func (b *Backend) IsAlive(alive bool) {
+func (b *Backend) IsAlive() (alive bool) {
    b.mux.RLock()
    alive = b.Alive
    b.mux.RLock()
@@ -49,19 +49,64 @@ func (b *Backend) SetALive(alive bool) {
     b.mux.Unlock()
 }
 
+func (s *ServerPool) AddBackend(backend *Backend) {
+   s.backends = append(s.backends, backend) 
+}
+
+func NewBackend(addr string, alive bool, proxy httputil.ReverseProxy) *Backend {
+    return &Backend{
+        Addr: addr,
+        Alive: alive,
+        ReverseProxy: &proxy,
+    }
+}
+
+func (s *ServerPool) NextServer(urls []string) *Backend {
+    for _, str := range urls {
+        /*
+        if s.backends[str].IsAlive() {
+            fmt.Println(s.backends[val])
+            return s.backends[val]
+            */
+        fmt.Printf("%s\n", str)
+        }
+
+    return nil
+}
+
+var serverPool ServerPool
 
 func main() {
 
-    s := Servers{}
-    s.backend = append(s.backend, &Backend{Addr: "127.0.0.2"})
-    s.backend = append(s.backend, &Backend{Addr: "127.0.0.3"})
-    s.backend = append(s.backend, &Backend{Addr: "127.0.0.4"})
+    urls := []string{"127.0.0.2", "127.0.0.4", "127.0.0.3"}
 
-    lb := NewLoadBalancer(s.backend)
 
-    for _ = range s.backend {
-        fmt.Println(lb.IsNext(s))
+    s := ServerPool{}
+    fmt.Println(s.NextServer(urls))
+    /*
+    u1 := "127.0.0.2"
+    u2 := "127.0.0.4"
+    u3 := "127.0.0.3"
+
+    urlMap := make(map[string]string)
+
+    urlMap[u1] = "127.0.0.2"
+    urlMap[u2] = "127.0.0.3"
+    urlMap[u3] = "127.0.0.4"
+    
+    for _, val := range urlMap {
+        serverUrl, err := url.Parse(val)
+        if err != nil {
+            log.Fatal(err)
+        }
+
+        s1 := NewBackend("127.0.0.2", true, *httputil.NewSingleHostReverseProxy(serverUrl))
+        s2 := NewBackend("127.0.0.3", false, *httputil.NewSingleHostReverseProxy(serverUrl))
+        s3 := NewBackend("127.0.0.4", true, *httputil.NewSingleHostReverseProxy(serverUrl))
+
+        fmt.Println(s1, s2, s3)
     }
+    */
 
 }
 
@@ -81,10 +126,12 @@ func BackendStatus(u *url.URL) bool {
 // fuction to be run periodically to check on status of available servers
 func (b Backend) CheckServerHealth() bool {
     
+    return false
 }
 
 // function to iterate through available servers
-func (lb LoadBalancer) IsNext(s Servers) *Backend {
+/*
+func (lb LoadBalancer) IsNext(s ServerPool) *Backend {
     var i = 0
     server := s.backend[i]
     i++
@@ -98,6 +145,7 @@ func (lb LoadBalancer) IsNext(s Servers) *Backend {
 
     return server
 }
+*/
 
 
 
