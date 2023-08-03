@@ -15,22 +15,40 @@ type Backend struct {
     Addr string
     Alive bool
     mux sync.RWMutex
-    ReverseProxy *httputil.ReverseProxy
+    Proxy *httputil.ReverseProxy
 }
 
+/*
 type ServerPool struct {
     backends []*Backend
     current uint64
     
 }
+*/
 
 type LoadBalancer struct {
     servers []*Backend
+    current int
+    port string
 }
 
-func NewLoadBalancer(servers []*Backend) *LoadBalancer {
+func NewBackend(addr string) *Backend {
+    serverUrl, err := url.Parse(addr)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    return &Backend{
+        Addr: addr,
+        Proxy: httputil.NewSingleHostReverseProxy(serverUrl),
+    }
+}
+
+func NewLoadBalancer(port string, servers []*Backend) *LoadBalancer {
     return &LoadBalancer{
         servers: servers,
+        current: 0,
+        port: port,
     }
 }
 
@@ -49,64 +67,28 @@ func (b *Backend) SetALive(alive bool) {
     b.mux.Unlock()
 }
 
-func (s *ServerPool) AddBackend(backend *Backend) {
-   s.backends = append(s.backends, backend) 
-}
 
-func NewBackend(addr string, alive bool, proxy httputil.ReverseProxy) *Backend {
-    return &Backend{
-        Addr: addr,
-        Alive: alive,
-        ReverseProxy: &proxy,
+/*
+// function to increase the counter of the serverPool 
+func (s *ServerPool) NextIndex() int {
+    //return int(atomic.AddUint64(&s.current, uint64(1)) % uint64(len(s.backends)))
+    return int(s.current) % len(s.backends)
+}
+*/
+
+func (lb *LoadBalancer) GetNextServer(b []Backend) *Backend {
+    // retrieve server 
+    server := lb.servers[lb.current % len(lb.servers)]
+    for !server.IsAlive() {
+        lb.current++
+        server = lb.servers[lb.current % len(lb.servers)]
     }
+    lb.current++
+    return server
 }
-
-func (s *ServerPool) NextServer(urls []string) *Backend {
-    for _, str := range urls {
-        /*
-        if s.backends[str].IsAlive() {
-            fmt.Println(s.backends[val])
-            return s.backends[val]
-            */
-        fmt.Printf("%s\n", str)
-        }
-
-    return nil
-}
-
-var serverPool ServerPool
 
 func main() {
 
-    urls := []string{"127.0.0.2", "127.0.0.4", "127.0.0.3"}
-
-
-    s := ServerPool{}
-    fmt.Println(s.NextServer(urls))
-    /*
-    u1 := "127.0.0.2"
-    u2 := "127.0.0.4"
-    u3 := "127.0.0.3"
-
-    urlMap := make(map[string]string)
-
-    urlMap[u1] = "127.0.0.2"
-    urlMap[u2] = "127.0.0.3"
-    urlMap[u3] = "127.0.0.4"
-    
-    for _, val := range urlMap {
-        serverUrl, err := url.Parse(val)
-        if err != nil {
-            log.Fatal(err)
-        }
-
-        s1 := NewBackend("127.0.0.2", true, *httputil.NewSingleHostReverseProxy(serverUrl))
-        s2 := NewBackend("127.0.0.3", false, *httputil.NewSingleHostReverseProxy(serverUrl))
-        s3 := NewBackend("127.0.0.4", true, *httputil.NewSingleHostReverseProxy(serverUrl))
-
-        fmt.Println(s1, s2, s3)
-    }
-    */
 
 }
 
@@ -131,19 +113,20 @@ func (b Backend) CheckServerHealth() bool {
 
 // function to iterate through available servers
 /*
-func (lb LoadBalancer) IsNext(s ServerPool) *Backend {
+func (s ServerPool) IsNext(urls []string) *Backend {
     var i = 0
-    server := s.backend[i]
+    server := s.backends[i]
     i++
 
     // We have reached the end of the servers
     // and we need to restart the counter from
     // the beginning
-    if i >= len(s.backend) {
+    if i >= len(s.backends) {
        i = 0 
     }
 
     return server
+
 }
 */
 
