@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"net/http/httputil"
@@ -10,126 +9,97 @@ import (
 	"time"
 )
 
-
+// Create Backend server struct
 type Backend struct {
-    Addr string
+    Addr *url.URL 
     Alive bool
     mux sync.RWMutex
-    Proxy *httputil.ReverseProxy
+    Proxy httputil.ReverseProxy
 }
 
-/*
-type ServerPool struct {
-    backends []*Backend
-    current uint64
-    
-}
-*/
-
+// Create loadbalancer struct
 type LoadBalancer struct {
     servers []*Backend
-    current int
-    port string
+    current int64 //
+    // maybe add a port here
 }
 
+// Factory method to create new backends
 func NewBackend(addr string) *Backend {
-    serverUrl, err := url.Parse(addr)
+    serverURL, err := url.Parse(addr)
     if err != nil {
         log.Fatal(err)
     }
 
     return &Backend{
-        Addr: addr,
-        Proxy: httputil.NewSingleHostReverseProxy(serverUrl),
+        Addr: serverURL,
+        //Alive: true,
+        Proxy: *httputil.NewSingleHostReverseProxy(serverURL),
     }
 }
 
-func NewLoadBalancer(port string, servers []*Backend) *LoadBalancer {
-    return &LoadBalancer{
-        servers: servers,
-        current: 0,
-        port: port,
-    }
-}
+// Factory method to create new backends
 
-// Returns true when the backend is up (alive)
+// Method to check if backend is alive
 func (b *Backend) IsAlive() (alive bool) {
-   b.mux.RLock()
-   alive = b.Alive
-   b.mux.RLock()
-   return
+    b.mux.Lock()
+    alive = b.Alive
+    b.mux.Unlock()
+    return
 }
 
-// Sets a backends status at alive or not
-func (b *Backend) SetALive(alive bool) {
+// Method to set backend as alive
+func (b *Backend) SetAlive(alive bool) {
     b.mux.Lock()
     b.Alive = alive
     b.mux.Unlock()
 }
 
-
-/*
-// function to increase the counter of the serverPool 
-func (s *ServerPool) NextIndex() int {
-    //return int(atomic.AddUint64(&s.current, uint64(1)) % uint64(len(s.backends)))
-    return int(s.current) % len(s.backends)
-}
-*/
-
-func (lb *LoadBalancer) GetNextServer(b []Backend) *Backend {
-    // retrieve server 
-    server := lb.servers[lb.current % len(lb.servers)]
-    for !server.IsAlive() {
-        lb.current++
-        server = lb.servers[lb.current % len(lb.servers)]
-    }
-    lb.current++
-    return server
-}
-
-func main() {
-
-
-}
-
-// function to check whether a TCP connection can be established to the server
-func BackendStatus(u *url.URL) bool {
+// Create method to ping backend servers to see if they are up
+func (b *Backend) isBackendAlive(u *url.URL) bool {
     timeout := 2 * time.Second
     conn, err := net.DialTimeout("tcp", u.Host, timeout)
     if err != nil {
-        log.Println("server is down")
-        return false 
+        log.Println("server failing ping test and cannot be reached")
+        return false
     }
-    defer conn.Close()
 
+    defer conn.Close()
     return true
 }
 
-// fuction to be run periodically to check on status of available servers
-func (b Backend) CheckServerHealth() bool {
-    
-    return false
+// HealthCheck(); Function that essentially wraps isBackendAlive to ping the servers and update status
+func (lb *LoadBalancer) HealthCheck() {
+    for _, b := range lb.servers {
+        status := "up"
+        alive := b.isBackendAlive(b.Addr)
+        b.SetAlive(alive)
+        if !alive {
+            status = "down"
+        }
+        log.Printf("%s [%s]\n", b.Addr, status)
+    }
 }
 
-// function to iterate through available servers
-/*
-func (s ServerPool) IsNext(urls []string) *Backend {
-    var i = 0
-    server := s.backends[i]
-    i++
-
-    // We have reached the end of the servers
-    // and we need to restart the counter from
-    // the beginning
-    if i >= len(s.backends) {
-       i = 0 
+// healtCheck; yes a bit confusing. This function is to be run as a go routine on an interval to scan the servers and see if they are up
+var loadBalancer LoadBalancer
+func healthCheck() {
+    time := time.NewTicker(2 * time.Minute)
+    for {
+        select {
+        case <- time.C:
+            log.Println("beginning health check...")
+            loadBalancer.HealthCheck()
+            log.Println("Health check complete")
+        }
     }
 
-    return server
+}
+
+// Method to get the next backend
+
+// Load Balancer function
+
+func main() {
 
 }
-*/
-
-
-
-
